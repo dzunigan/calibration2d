@@ -3,7 +3,7 @@ Implementation of an automatic method to estimate the 2D extrinsic calibration p
 
 **Authors:** [David Zuñiga-Noël](http://mapir.isa.uma.es/mapirwebsite/index.php/people/270), [Jose-Raul Ruiz-Sarmiento](http://mapir.uma.es/mapirwebsite/index.php/people/108-jose-raul-ruiz-sarmiento), [Ruben Gomez-Ojeda](http://mapir.isa.uma.es/mapirwebsite/index.php/people/164-ruben-gomez), and [Javier Gonzalez-Jimenez](http://mapir.isa.uma.es/mapirwebsite/index.php/people/95-javier-gonzalez-jimenez)
 
-**License:**  [GPL v3](https://raw.githubusercontent.com/dzunigan/calibration2d/master/LICENSE.txt)
+**License:**  [GPLv3](https://raw.githubusercontent.com/dzunigan/calibration2d/master/LICENSE.txt)
 
 ## 1. Dependencies
 
@@ -12,6 +12,7 @@ Implementation of an automatic method to estimate the 2D extrinsic calibration p
    sudo apt install libboost-all-dev
    ```
 * Ceres (1.14.0-facb199)
+
    See ceres [documentation](http://ceres-solver.org/installation.html#linux).
    
 * CMake (3.5.1-1ubuntu1)
@@ -30,8 +31,8 @@ Implementation of an automatic method to estimate the 2D extrinsic calibration p
    ```
    sudo apt install libgoogle-glog-dev
    ```
-
+<!---
 ## 2. Data Format
 
 ## 3. Usage
-
+--->
