@@ -31,8 +31,17 @@ Implementation of an automatic method to estimate the 2D extrinsic calibration p
    ```
    sudo apt install libgoogle-glog-dev
    ```
-<!---
+
 ## 2. Data Format
 
+The input are synchronized per-sensor incremental 2D motions. For each sensor, incremental motions are grouped into a single text file, where each line contains a synchronized 2D incremental motion (angles in radians) in the following format:
+```
+x y yaw
+```
+
+Note: all sensors must have the same number of observations
+
+To compute synchronized incremental motions from estimated trajectories, please see [tools/sync](tools/sync).
+<!--
 ## 3. Usage
---->
+-->

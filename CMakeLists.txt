@@ -35,11 +35,16 @@ find_package(Eigen3 REQUIRED)
 find_package(Gflags REQUIRED)
 find_package(Glog REQUIRED)
 
+option(BUILD_SYNC_TOOL "Build sync tool" ON)
+if(BUILD_SYNC_TOOL)
+  add_subdirectory(tools/sync)
+endif(BUILD_SYNC_TOOL)
+
 include_directories(include ${Boost_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR} ${GFLAGS_INCLUDE_DIR} ${GLOG_INCLUDE_DIRS})
 
 ## Header files
 file(GLOB_RECURSE HEADER_FILES include/*.hpp include/*.h)
-add_custom_target(header_files SOURCES ${HEADER_FILES})
+add_custom_target(calibrate_header_files SOURCES ${HEADER_FILES})
 
 add_executable(calibrate src/calibrate.cpp src/random.cpp src/random_sampler.cpp src/support_measurement.cpp src/estimators.cpp)
 target_link_libraries(calibrate ${Boost_LIBRARIES} ${CERES_LIBRARIES} ${GFLAGS_LIBRARY} ${GLOG_LIBRARIES})
