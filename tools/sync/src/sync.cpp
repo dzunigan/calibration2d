@@ -32,8 +32,8 @@ FLAGS_CASES
 
 #undef FLAG_CASE
 
-#ifndef PROGRA_NAME
-#define PROGRA_NAME \
+#ifndef PROGRAM_NAME
+#define PROGRAM_NAME \
     "sync"
 #endif
 
@@ -47,7 +47,7 @@ bool HelpRequired(int argc, char* argv[]) noexcept {
 
 void ShowHelp() noexcept {
 
-    std::cerr << "Usage: " << PROGRA_NAME << " [options]";
+    std::cerr << "Usage: " << PROGRAM_NAME << " [options]";
     std::cerr << " <trajectory1> <trajectory2> ...";
     std::cerr << std::endl;
 
@@ -69,6 +69,12 @@ void ShowHelp() noexcept {
 void ValidateFlags() {
     if (!FLAGS_output_dir.empty())
         CHECK(boost::filesystem::is_directory(FLAGS_output_dir));
+}
+
+void ValidateArgs(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i)
+        CHECK(boost::filesystem::is_regular_file(argv[i])) << "Invalid trayectory file:" << std::endl
+                                                           << argv[i];
 }
 
 io::pose_t relative_pose(io::pose_t a, io::pose_t b) {
@@ -126,13 +132,9 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    // Check input flags
+    // Check input arguments
     ValidateFlags();
-
-    // Check input args
-    for (int i = 1; i < argc; ++i)
-        CHECK(boost::filesystem::is_regular_file(argv[i])) << "Invalid trayectory file:" << std::endl
-                                                           << argv[i];
+    ValidateArgs(argc, argv);
 
     // Read input trajectories
     std::vector<double> start_times(argc-1);
