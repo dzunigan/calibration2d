@@ -216,7 +216,7 @@ int main(int argc, char* argv[]) {
     boost::filesystem::path output_path = FLAGS_output_dir.empty() ? boost::filesystem::current_path() : FLAGS_output_dir;
     for (int i = 1; i < argc; ++i) {
         boost::filesystem::path file_path = output_path;
-        file_path /= (std::to_string(i-1) + ".txt");
+        file_path /= (std::to_string(i) + ".txt");
 
         CHECK(!boost::filesystem::exists(file_path)) << "File already exists:" << std::endl
                                                      << file_path.string();
