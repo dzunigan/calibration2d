@@ -19,11 +19,10 @@
 #include "io.hpp"
 #include "se2.hpp"
 
-DEFINE_bool(h, false, "Show help message");
-
 #ifndef FLAGS_CASES
 #define FLAGS_CASES                                                                                \
-    FLAG_CASE(uint64, s, 0, "Number of frames to skip in reference trajectory")
+    FLAG_CASE(uint64, s, 0, "Number of frames to skip in reference trajectory")                    \
+    FLAG_CASE(string, output_dir, "", "Output directory")
 #endif
 
 #define FLAG_CASE(type, name, val, txt) \
@@ -38,7 +37,15 @@ FLAGS_CASES
     "sync"
 #endif
 
-void ShowHelp() {
+bool HelpRequired(int argc, char* argv[]) noexcept {
+
+    const std::string help_flag("--help");
+    for (int i = 1; i < argc; ++i)
+        if (help_flag.compare(argv[i]) == 0) return true;
+    return false;
+}
+
+void ShowHelp() noexcept {
 
     std::cerr << "Usage: " << PROGRA_NAME << " [options]";
     std::cerr << " <trajectory1> <trajectory2> ...";
@@ -48,12 +55,20 @@ void ShowHelp() {
     std::cerr << "Options:" << std::endl;
 
 #define FLAG_CASE(type, name, val, txt)                                                            \
-    std::cerr << "  -" << #name << ": " << #txt << std::endl;                                      \
-    std::cerr << "       " << "(type: " << #type << ", default: " << #val << ")" << std::endl;
+    std::cerr << "  --" << #name << ": " << txt << std::endl;                                      \
+    std::cerr << "        " << "(type: " << #type << ", default: " << #val << ")" << std::endl;
 
     FLAGS_CASES
 
 #undef FLAG_CASE
+
+    std::cerr << "  --help: Displays this message" << std::endl;
+    std::cerr << std::endl;
+}
+
+void ValidateFlags() {
+    if (!FLAGS_output_dir.empty())
+        CHECK(boost::filesystem::is_directory(FLAGS_output_dir));
 }
 
 io::pose_t relative_pose(io::pose_t a, io::pose_t b) {
@@ -93,6 +108,12 @@ io::pose_t sample(const io::Trajectory trajectory, double timestamp) {
 
 int main(int argc, char* argv[]) {
 
+    // Handle help flag
+    if (HelpRequired(argc, argv)) {
+        ShowHelp();
+        return 0;
+    }
+
     // Initialize Glog library
     google::InitGoogleLogging(argv[0]);
     FLAGS_logtostderr = true;
@@ -100,15 +121,13 @@ int main(int argc, char* argv[]) {
     // Parse input flags
     gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
 
-    if (FLAGS_h) {
-        ShowHelp();
-        return 0;
-    }
-
     if (argc < 3) {
         ShowHelp();
         return -1;
     }
+
+    // Check input flags
+    ValidateFlags();
 
     // Check input args
     for (int i = 1; i < argc; ++i)
@@ -194,8 +213,9 @@ int main(int argc, char* argv[]) {
     } while (has_next);
 
     // Save incremental motions to file
+    boost::filesystem::path output_path = FLAGS_output_dir.empty() ? boost::filesystem::current_path() : FLAGS_output_dir;
     for (int i = 1; i < argc; ++i) {
-        boost::filesystem::path file_path = boost::filesystem::current_path();
+        boost::filesystem::path file_path = output_path;
         file_path /= (std::to_string(i-1) + ".txt");
 
         CHECK(!boost::filesystem::exists(file_path)) << "File already exists:" << std::endl
