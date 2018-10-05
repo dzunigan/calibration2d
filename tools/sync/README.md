@@ -11,7 +11,7 @@ where the `timestamp` is in seconds, and the `yaw` angle in radians.
 
 ## 2. Usage
 
-The 
+The synchronizer can be invoked with the following syntax:
 ```
 sync [options] <trajectory1> <trajectory2> ...
 ```
