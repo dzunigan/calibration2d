@@ -42,6 +42,20 @@ x y yaw
 Note: all sensors must have the same number of observations
 
 To compute synchronized incremental motions from estimated trajectories, please see [tools/sync](tools/sync).
-<!--
+
 ## 3. Usage
--->
+
+The multisensor calibration method can be invoked as:
+```
+calibrate [options] <motions1> <motions2> ...
+```
+
+Notes:
+
+* The method calibrates all sensors with respect to a reference one. The reference sensor is assumed to be the one observing the first incremetal motions.
+
+* Use the `--scale_ambiguous=n,m,...` option to indicate which motions have scale ambiguity.
+
+## 4. Example
+
+**TODO**
