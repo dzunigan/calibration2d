@@ -12,6 +12,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/math/special_functions/sign.hpp>
 
+// Gflags
+#include <gflags/gflags.h>
+
 // Glog
 #include <glog/logging.h>
 
@@ -22,25 +25,57 @@
 
 #include "util/alignment.h"
 #include "util/csv.hpp"
-
-// TODO: assuming the last sensor is the only nonmetrically accurate (for additional constraints)
-
-constexpr size_t MIN_INLIERS = 5;
-#define NUM_ITERATIONS 1
+#include "util/misc.hpp"
 
 using Calibration_RANSAC = colmap::LORANSAC<CalibrationEstimator2, CalibrationEstimator2>;
 EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION_CUSTOM(Calibration_RANSAC::Report)
 EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION_CUSTOM(Sensor)
+
+#ifndef FLAGS_CASES
+#define FLAGS_CASES                                                                                \
+    FLAG_CASE(uint64, min_num_inliers, 6, "Minimum number of inliers to consider a link")          \
+    FLAG_CASE(string, scale_ambiguous, "", "Comma separated motion ids that have scale ambiguity")
+#endif
+
+#define FLAG_CASE(type, name, val, txt) \
+    DEFINE_##type(name, val, txt);
+
+FLAGS_CASES
+
+#undef FLAG_CASE
 
 #ifndef PROGRAM_NAME
 #define PROGRAM_NAME \
     "calibrate"
 #endif
 
-inline void PrintHelp(std::ostream& out) {
-    out << "Usage: " << PROGRAM_NAME;
-    out << " <motions1> <motions2> ...";
-    out << std::endl;
+bool HelpRequired(int argc, char* argv[]) noexcept {
+
+    const std::string help_flag("--help");
+    for (int i = 1; i < argc; ++i)
+        if (help_flag.compare(argv[i]) == 0) return true;
+    return false;
+}
+
+void ShowHelp() noexcept {
+
+    std::cerr << "Usage: " << PROGRAM_NAME << " [options]";
+    std::cerr << " <motions1> <motions2> ...";
+    std::cerr << std::endl;
+
+    std::cerr << std::endl;
+    std::cerr << "Options:" << std::endl;
+
+#define FLAG_CASE(type, name, val, txt)                                                            \
+    std::cerr << "  --" << #name << ": " << txt << std::endl;                                      \
+    std::cerr << "        " << "(type: " << #type << ", default: " << #val << ")" << std::endl;
+
+    FLAGS_CASES
+
+#undef FLAG_CASE
+
+    std::cerr << "  --help: Displays this message" << std::endl;
+    std::cerr << std::endl;
 }
 
 inline void PrintCSV(std::ostream& out, const Eigen::Ref<const Eigen::Vector4d>& vec, int precision = 6) {
@@ -48,7 +83,29 @@ inline void PrintCSV(std::ostream& out, const Eigen::Ref<const Eigen::Vector4d>&
         << vec(0) << ", " << vec(1) << ", " << vec(2) << ", " << vec(3);
 }
 
+void ValidateFlags() {
+    if (!FLAGS_scale_ambiguous.empty()) {
+        CHECK(!VectorContainsValue(CSVToVector<int>(FLAGS_scale_ambiguous), 1));
+        CHECK(!VectorContainsDuplicateValues(CSVToVector<int>(FLAGS_scale_ambiguous)));
+    }
+}
+
+void ValidateArgs(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i)
+        CHECK(boost::filesystem::is_regular_file(argv[i])) << "Invalid input file:" << std::endl
+                                                           << argv[i];
+}
+
 int main(int argc, char* argv[]) {
+
+    // Check input args
+    // -------------------
+
+    // Handle help flag
+    if (HelpRequired(argc, argv)) {
+        ShowHelp();
+        return 0;
+    }
 
     // Initialize Google's logging library
     google::InitGoogleLogging(argv[0]);
@@ -57,20 +114,22 @@ int main(int argc, char* argv[]) {
     // Check at runtime that size_t can contain all sensor ids without information loss
     CHECK_EQ(static_cast<size_t>(kMaxNumSensors), kMaxNumSensors);
 
+    // Parse input flags
+    gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
+
     // At least two sensors required
     if (argc < 3) {
-        PrintHelp(std::cerr);
+        ShowHelp();
         return -1;
     }
 
-    // Check input args
-    for (int i = 1; i < argc; ++i)
-        CHECK(boost::filesystem::is_regular_file(argv[i])) << "Invalid input file:" << std::endl
-                                                           << argv[i];
+    // Check input arguments
+    ValidateFlags();
+    ValidateArgs(argc, argv);
 
     // Load sensor observations
+    // -------------------
     std::vector<Sensor> sensors(argc-1);
-    CHECK_GE(sensors.size(), 2) << "At least 2 sensors required to perform extrinsic calibration!";
     for (int i = 1; i < argc; ++i) {
         Eigen::MatrixXd data = csv::read<double>(argv[i], ' ');
 
@@ -83,20 +142,11 @@ int main(int argc, char* argv[]) {
 
     // Set reference sensor
     const Sensor& reference = sensors.front();
-    size_t N = reference.Observations().size();
+    const size_t N = reference.Observations().size();
 
     // All sensor must have the same number of observations
     for (const Sensor& sensor : sensors)
         CHECK_EQ(sensor.Observations().size(), N);
-
-//    const size_t NUM_CALIBRATIONS = sensors.size() - 1;
-//    Eigen::MatrixXd data(NUM_ITERATIONS, 3*4*NUM_CALIBRATIONS);
-//    data.fill(std::numeric_limits<double>::quiet_NaN());
-
-    // Outputs
-    std::vector<Eigen::Vector4d> closed_form;
-    std::vector<Eigen::Vector4d> iterative;
-    std::vector<Eigen::Vector4d> robust;
 
     // Auto-initialization
     // -------------------
@@ -126,15 +176,14 @@ int main(int argc, char* argv[]) {
         // Check inlier set
         CHECK(ransac_report.inlier_mask.size() > ransac_options.min_inlier_ratio * sensor.Observations().size()) << "Not enough inliers!";
         sensor.Calibration() = ransac_report.model;
-        closed_form.push_back(ransac_report.model);
-
-        if (i != 1) std::cout << ", ";
-        // std::cout << ransac_report.model.transpose();
-        PrintCSV(std::cout, ransac_report.model);
     }
+
+    // Joint Optimization
+    // -------------------
 
     // Additional constraints
     std::unordered_set<index_pair_t> constraints;
+    std::vector<int> scaled_motions = CSVToVector<int>(FLAGS_scale_ambiguous);
     for (size_t i = 1; i < sensors.size(); ++i) {
         const sensor_t id_i = sensors[i].SensorId();
         const Calibration_RANSAC::Report& ransac_report_i = reports[i-1];
@@ -148,15 +197,23 @@ int main(int argc, char* argv[]) {
                     observations.AddIndexPair(id_i, id_j, k, k); // Intersection of inliers
             }
 
-            if (observations.Pairs(id_i, id_j).size() > MIN_INLIERS)
-                 constraints.insert(index_pair_t(id_i, id_j)); // TODO: In metric space (in first place the sensor providing metrically accurate incremental poses)
+            if (observations.Pairs(id_i, id_j).size() >= FLAGS_min_num_inliers) {
+                // In metric space: in first place the sensor providing metrically accurate incremental poses
+                if (VectorContainsValue<int>(scaled_motions, i+1)) {
+                    if (!VectorContainsValue<int>(scaled_motions, j+1)) constraints.insert(index_pair_t(id_j, id_i));
+                } else
+                    constraints.insert(index_pair_t(id_i, id_j));
+            }
         }
     }
 
     // Refinement options
     BatchCalibrationOptions options;
-    options.solver_options.minimizer_progress_to_stdout = false;
+    options.use_additional_constraints = true;
+    options.loss_function_type = BatchCalibrationOptions::LossFunctionType::CAUCHY;
+    options.loss_function_scale = 0.05;
     options.print_summary = false;
+    options.solver_options.minimizer_progress_to_stdout = false;
 
     // Refinement configuration
     BatchCalibrationConfig config;
@@ -168,75 +225,28 @@ int main(int argc, char* argv[]) {
     config.ObservationDatabase() = observations;
     config.AdditionalConstraints() = constraints;
 
-    // Iterative
-    // ---------
-    options.use_additional_constraints = false;
-    options.loss_function_type = BatchCalibrationOptions::LossFunctionType::TRIVIAL;
-
-    // Run iterative optimization
-    BatchCalibration calibration_iterative(options, config);
-
-    if (calibration_iterative.Solve()) {
-        for (size_t i = 1; i < sensors.size(); ++i) {
-            const Sensor& sensor = sensors[i];
-            Eigen::Vector4d params = calibration_iterative.Paramerameters(sensor.SensorId());
-            params *= boost::math::sign(params(3));
-
-            iterative.push_back(params);
-            std::cout << ", "; // << params;
-            PrintCSV(std::cout, params);
-        }
-    } else {
-        Eigen::Vector4d vnan;
-        vnan.fill(std::numeric_limits<double>::quiet_NaN());
-        for (size_t i = 1; i < sensors.size(); ++i) {
-            std::cout << ", "; // << vnan.transpose() << std::endl;
-            PrintCSV(std::cout, vnan);
-        }
-    }
-
-    // Robust
-    // ------
-    options.use_additional_constraints = true;
-    options.loss_function_type = BatchCalibrationOptions::LossFunctionType::CAUCHY;
-    options.loss_function_scale = 0.05;
-
     // Run robust optimization
-    BatchCalibration calibration_robust(options, config);
+    BatchCalibration calibration(options, config);
 
-    if (calibration_robust.Solve()) {
+    // Output
+    if (calibration.Solve()) {
         for (size_t i = 1; i < sensors.size(); ++i) {
             const Sensor& sensor = sensors[i];
-            Eigen::Vector4d params = calibration_robust.Paramerameters(sensor.SensorId());
+            Eigen::Vector4d params = calibration.Paramerameters(sensor.SensorId());
             params *= boost::math::sign(params(3));
 
-            robust.push_back(params);
-            std::cout << ", "; // << params;
             PrintCSV(std::cout, params);
+            std::cout << std::endl;
         }
     } else {
         Eigen::Vector4d vnan;
         vnan.fill(std::numeric_limits<double>::quiet_NaN());
         for (size_t i = 1; i < sensors.size(); ++i) {
-            std::cout << ", "; // << vnan.transpose() << std::endl;
+
             PrintCSV(std::cout, vnan);
+            std::cout << std::endl;
         }
     }
-
-    // Save closed_form, iterative, robust estimations
-//    for (size_t k = 0; k < NUM_CALIBRATIONS; ++k) {
-//        if (k < closed_form.size())
-//            data.block<1, 4>(asdf, 4*k) = closed_form[k];
-//        if (k < iterative.size())
-//            data.block<1, 4>(asdf, 4*NUM_CALIBRATIONS + 4*k) = iterative[k];
-//        if (k < robust.size())
-//            data.block<1, 4>(asdf, 8*NUM_CALIBRATIONS + 4*k) = robust[k];
-//    }
-
-    std::cout << std::endl;
-
-    // Output calibrations
-//    CHECK(csv::write(data, "data.csv"));
 
     return 0;
 }
