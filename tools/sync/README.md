@@ -3,7 +3,7 @@ Computes synchronized incremental motions from
 
 ## 1. Dependencies
 
-See project [README.md](README.md)
+See project [README.md](../../README.md)
 
 ## 2. Data Format
 
@@ -30,4 +30,4 @@ Notes:
 
 ## 4. Example
 
-See project [README.md](README.md)
+See project [README.md](../../README.md)
