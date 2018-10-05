@@ -58,4 +58,24 @@ Notes:
 
 ## 4. Example
 
-**TODO**
+To ilustrate the usage of the calibration method, we provided example trajectories in the [data](data) directory. First, the synchronous incremental motions are required. To compute then form the estimated trajectories, we strongly recomend to use the provided [sync tool](tools/sync):
+```
+sync -s 3 --output_dir=./data data/camera.txt data/laser.txt data/wheel.txt
+```
+
+This command will produce three files inside the data directory: `1.txt`, `2.txt`, `3.txt` for the camera, laser and wheel odometry, respectively. These files contain the synchronized incremental motions for each sensor.
+
+To perform the extrinsic calibration with respect to the wheel odometry, run
+```
+calibrate --scale_ambiguous=3 data/3.txt data/2.txt data/1.txt
+```
+
+Note that the scale ambiguous motions are provided in the *third argument* (`--scale_ambiguous=3`), which is `data/1.txt` and **NOT** the file with name `3.txt`. The wheel and laser motions are considered metrically accurate (`2.txt` and `3.txt`, respectively).
+
+The output are the *Sim(2)* extrinsic calibration of each sensor with respecto to the reference sensor (omitted). The output format is:
+```
+x, y, yaw, scale
+```
+
+The angle is expressed in radians. To recover the metrically accurate translation, just multiply the scale factor and the 2D translation vector.
+
