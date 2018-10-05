@@ -1,0 +1,7 @@
+# User files
+*~
+*.user
+**/data
+
+# Build files
+**/build
