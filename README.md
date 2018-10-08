@@ -72,7 +72,7 @@ calibrate --scale_ambiguous=3 data/3.txt data/2.txt data/1.txt
 
 Note that the scale ambiguous motions are provided in the *third argument* (`--scale_ambiguous=3`), which is `data/1.txt` and **NOT** the file with name `3.txt`. The wheel and laser motions are considered metrically accurate (`2.txt` and `3.txt`, respectively).
 
-The output are the *Sim(2)* extrinsic calibration of each sensor with respecto to the reference sensor (omitted). The output format is:
+The output are the *Sim(2)* extrinsic calibration of each sensor with respect to the reference sensor (omitted). The output format is:
 ```
 x, y, yaw, scale
 ```
