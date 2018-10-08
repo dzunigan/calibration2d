@@ -1,5 +1,5 @@
 # Synchronization tool
-Computes synchronized incremental motions from 
+Computes synchronized incremental motions from trajectories estimated for multiple sensors.
 
 ## 1. Dependencies
 
